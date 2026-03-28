@@ -1,76 +1,197 @@
 // server.js - Secure Online Examination System with JWT & Role-Based Access Control
 // VITONLINE Examination Platform
+// Manual JWT Implementation (without jsonwebtoken library)
 
 const express = require('express');
-const jwt = require('jsonwebtoken');
-const bodyParser = require('body-parser');
 const path = require('path');
 const crypto = require('crypto');
 
 const app = express();
 const PORT = 3000;
 
-// JWT Secret Key (in production, use environment variable)
-const JWT_SECRET = crypto.randomBytes(32).toString('hex');
-const TOKEN_EXPIRY = '1h';
-
-// Middleware
-app.use(bodyParser.json());
+app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
-
-// ======================== In-Memory Data Store ========================
 
 // =====================================================================
 // 5. USER DATABASE AND AUTHENTICATION
-//    - In-memory user database with pre-registered users
-//    - Each user has: id, username, password, role, name
-//    - Roles are either 'faculty' or 'student'
-//    - In production, this would be a real database with hashed passwords
+//    - Simulated user database with pre-registered users
+//    - Each user has: password and role (STUDENT or FACULTY)
+//    - In production, passwords would be hashed (bcrypt/argon2)
 // =====================================================================
-const users = [
-    { id: 1, username: 'faculty1', password: 'faculty123', role: 'faculty', name: 'Dr. Ananya Verma' },
-    { id: 2, username: 'faculty2', password: 'faculty456', role: 'faculty', name: 'Prof. Rajesh Kumar' },
-    { id: 3, username: 'student1', password: 'student123', role: 'student', name: 'Rahul Sharma' },
-    { id: 4, username: 'student2', password: 'student456', role: 'student', name: 'Priya Patel' },
-    { id: 5, username: 'student3', password: 'student789', role: 'student', name: 'Arjun Nair' }
-];
+const users = {
+    student1: { password: 'pass123', role: 'STUDENT', name: 'Rahul Sharma' },
+    student2: { password: 'pass456', role: 'STUDENT', name: 'Priya Patel' },
+    student3: { password: 'pass789', role: 'STUDENT', name: 'Arjun Nair' },
+    faculty1: { password: 'faculty123', role: 'FACULTY', name: 'Dr. Ananya Verma' },
+    faculty2: { password: 'faculty456', role: 'FACULTY', name: 'Prof. Rajesh Kumar' }
+};
 
-// Exams created by faculty
-let exams = [
-    {
-        id: 1,
-        title: 'Cryptography Mid-Term',
-        createdBy: 1,
-        facultyName: 'Dr. Ananya Verma',
-        questions: [
-            { id: 1, question: 'What does AES stand for?', options: ['Advanced Encryption Standard', 'Advanced Electronic System', 'Automated Encryption Service', 'Applied Encryption Suite'], correct: 0 },
-            { id: 2, question: 'Which key length does AES-256 use?', options: ['128 bits', '192 bits', '256 bits', '512 bits'], correct: 2 },
-            { id: 3, question: 'What is the purpose of HMAC?', options: ['Encryption', 'Message Integrity', 'Key Exchange', 'Compression'], correct: 1 }
-        ],
-        createdAt: new Date().toISOString()
+// PHASE 1: User Authentication
+const authenticateUser = (username, password) => {
+    if (users[username] && users[username].password === password) {
+        return {
+            success: true,
+            role: users[username].role,
+            name: users[username].name,
+            message: 'Authentication Successful'
+        };
     }
-];
-
-// Student submissions
-let submissions = [];
-
-// Token blacklist (for logout)
-const tokenBlacklist = new Set();
-
-// ======================== Middleware Functions ========================
+    return {
+        success: false,
+        message: 'Invalid username or password'
+    };
+};
 
 // =====================================================================
-// 3. TOKEN VERIFICATION (authenticateToken middleware)
-//    - Extracts JWT from 'Authorization: Bearer <token>' header
-//    - Checks if token is missing → 401 TOKEN_MISSING
-//    - Checks if token is blacklisted (logged out) → 401 TOKEN_BLACKLISTED
-//    - Verifies the HMAC-SHA256 signature using jwt.verify()
-//    - Checks if token is expired → 401 TOKEN_EXPIRED
-//    - Checks if signature is invalid → 403 TOKEN_INVALID
-//    - If valid → decodes payload and attaches user info to req.user
-//    - This middleware is applied to ALL protected routes
+// 2. HMAC-SHA256 SIGNATURE GENERATION
+//    - Uses Node.js crypto module to generate HMAC-SHA256
+//    - Secret key is used to sign the data (header.payload)
+//    - Returns Base64URL encoded signature
 // =====================================================================
-function authenticateToken(req, res, next) {
+const SECRET_KEY = 'VITOnlineExaminationSystemSecretKey2025';
+
+// Base64URL encode (URL-safe Base64 without padding)
+const base64UrlEncode = (data) => {
+    let base64;
+    if (Buffer.isBuffer(data)) {
+        base64 = data.toString('base64');
+    } else {
+        base64 = Buffer.from(data).toString('base64');
+    }
+    return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+};
+
+// Base64URL decode
+const base64UrlDecode = (str) => {
+    str = str.replace(/-/g, '+').replace(/_/g, '/');
+    // Add padding
+    while (str.length % 4 !== 0) {
+        str += '=';
+    }
+    return Buffer.from(str, 'base64').toString('utf8');
+};
+
+// HMAC-SHA256 Signature Generation
+const generateSignature = (data) => {
+    const hmac = crypto.createHmac('sha256', SECRET_KEY);
+    hmac.update(data);
+    const signature = hmac.digest(); // Returns Buffer
+    return base64UrlEncode(signature);
+};
+
+// =====================================================================
+// 1. JWT TOKEN GENERATION (HMAC-SHA256)
+//    - Manually creates JWT with Header, Payload, and Signature
+//    - Header specifies algorithm (HS256) and token type (JWT)
+//    - Payload contains user claims: sub, role, name, iat, exp
+//    - Signature = HMAC-SHA256(base64url(header).base64url(payload), secret)
+//    - Returns complete JWT: header.payload.signature
+// =====================================================================
+const generateJWT = (username, role, name) => {
+    // PHASE 2: Create Header
+    const header = {
+        alg: 'HS256',           // Algorithm: HMAC-SHA256
+        typ: 'JWT'              // Token type: JSON Web Token
+    };
+
+    // PHASE 2: Create Payload with claims
+    const payload = {
+        sub: username,          // Subject (user identifier)
+        role: role,             // User role (STUDENT/FACULTY)
+        name: name,             // User display name
+        iat: Date.now(),        // Issued at time (milliseconds)
+        exp: Date.now() + 3600000  // Expiration (1 hour from now)
+    };
+
+    // Base64URL encode header and payload
+    const encodedHeader = base64UrlEncode(JSON.stringify(header));
+    const encodedPayload = base64UrlEncode(JSON.stringify(payload));
+
+    // Generate HMAC-SHA256 signature over header.payload
+    const signature = generateSignature(
+        `${encodedHeader}.${encodedPayload}`
+    );
+
+    console.log(`[JWT] Token generated for ${username}`);
+    console.log(`[JWT]   Header  : ${encodedHeader}`);
+    console.log(`[JWT]   Payload : ${encodedPayload}`);
+    console.log(`[JWT]   Signature: ${signature}`);
+
+    // Return complete JWT: header.payload.signature
+    return `${encodedHeader}.${encodedPayload}.${signature}`;
+};
+
+// =====================================================================
+// 3. TOKEN VERIFICATION
+//    - Splits token into header, payload, signature parts
+//    - Recalculates HMAC-SHA256 signature and compares
+//    - Checks token expiration time
+//    - If signature mismatch → token tampered
+//    - If expired → token expired
+//    - Returns decoded payload if valid
+// =====================================================================
+const verifyToken = (token) => {
+    const parts = token.split('.');
+
+    // Check token structure (must have 3 parts)
+    if (parts.length !== 3) {
+        return { valid: false, error: 'Invalid token format' };
+    }
+
+    const [header, payload, signature] = parts;
+
+    // Recalculate signature using HMAC-SHA256
+    const expectedSignature = generateSignature(
+        `${header}.${payload}`
+    );
+
+    // Compare signatures (timing-safe comparison)
+    if (expectedSignature !== signature) {
+        return { valid: false, error: 'Invalid signature - Token tampered' };
+    }
+
+    // Decode and check expiration
+    const decodedPayload = JSON.parse(base64UrlDecode(payload));
+
+    if (Date.now() > decodedPayload.exp) {
+        return { valid: false, error: 'Token expired' };
+    }
+
+    return { valid: true, payload: decodedPayload };
+};
+
+// =====================================================================
+// 4. ROLE-BASED ACCESS CONTROL (RBAC)
+//    - Defines permissions for each role
+//    - STUDENT: can view questions and submit answers
+//    - FACULTY: can do everything students can + create exams,
+//               view submissions, and manage results
+//    - checkAuthorization() verifies if a role has the required permission
+// =====================================================================
+const rolePermissions = {
+    STUDENT: ['VIEW_QUESTIONS', 'SUBMIT_ANSWER'],
+    FACULTY: ['VIEW_QUESTIONS', 'SUBMIT_ANSWER', 'CREATE_EXAM',
+              'VIEW_SUBMISSIONS', 'MANAGE_RESULTS', 'VIEW_EXAMS']
+};
+
+const checkAuthorization = (userRole, requestedEndpoint) => {
+    const allowedEndpoints = rolePermissions[userRole];
+    if (allowedEndpoints?.includes(requestedEndpoint)) {
+        console.log(`[RBAC] ✓ Access GRANTED - ${userRole} can access ${requestedEndpoint}`);
+        return true;
+    } else {
+        console.log(`[RBAC] ✗ Access DENIED - ${userRole} cannot access ${requestedEndpoint}`);
+        return false;
+    }
+};
+
+// =====================================================================
+// MIDDLEWARE: Token Authentication
+//    - Extracts JWT from Authorization: Bearer <token> header
+//    - Verifies token using verifyToken() (step 3)
+//    - Attaches decoded user info to req.user
+// =====================================================================
+const authenticateTokenMiddleware = (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
@@ -85,7 +206,7 @@ function authenticateToken(req, res, next) {
 
     // Check if token is blacklisted (logged out)
     if (tokenBlacklist.has(token)) {
-        console.log(`[AUTH] Access DENIED - Token blacklisted (logged out) | ${req.method} ${req.path}`);
+        console.log(`[AUTH] Access DENIED - Token blacklisted | ${req.method} ${req.path}`);
         return res.status(401).json({
             success: false,
             error: 'Access Denied: Token has been invalidated (logged out)',
@@ -93,65 +214,64 @@ function authenticateToken(req, res, next) {
         });
     }
 
-    // jwt.verify() internally validates the HMAC-SHA256 signature
-    // It recomputes HMAC-SHA256(base64(header) + "." + base64(payload), JWT_SECRET)
-    // and compares it with the signature portion of the token
-    jwt.verify(token, JWT_SECRET, (err, decoded) => {
-        if (err) {
-            if (err.name === 'TokenExpiredError') {
-                console.log(`[AUTH] Access DENIED - Token expired | ${req.method} ${req.path}`);
-                return res.status(401).json({
-                    success: false,
-                    error: 'Access Denied: Token has expired',
-                    code: 'TOKEN_EXPIRED'
-                });
-            }
-            console.log(`[AUTH] Access DENIED - Invalid token | ${req.method} ${req.path}`);
-            return res.status(403).json({
-                success: false,
-                error: 'Access Denied: Invalid token',
-                code: 'TOKEN_INVALID'
-            });
-        }
+    // PHASE 3: Verify the token (signature + expiration)
+    const result = verifyToken(token);
 
-        req.user = decoded;
-        console.log(`[AUTH] Access GRANTED - User: ${decoded.name} (${decoded.role}) | ${req.method} ${req.path}`);
-        next();
-    });
-}
+    if (!result.valid) {
+        console.log(`[AUTH] Access DENIED - ${result.error} | ${req.method} ${req.path}`);
+        const status = result.error.includes('expired') ? 401 : 403;
+        return res.status(status).json({
+            success: false,
+            error: `Access Denied: ${result.error}`,
+            code: result.error.includes('expired') ? 'TOKEN_EXPIRED' : 'TOKEN_INVALID'
+        });
+    }
 
-// =====================================================================
-// 4. ROLE-BASED ACCESS CONTROL (RBAC) (authorizeRole middleware)
-//    - Takes allowed roles as arguments (e.g., 'student' or 'faculty')
-//    - Checks if the authenticated user's role (from JWT payload) matches
-//    - If role doesn't match → 403 INSUFFICIENT_ROLE
-//    - If role matches → allows request to proceed
-//    - Usage: authorizeRole('student') or authorizeRole('faculty')
-//    - Applied AFTER authenticateToken in the middleware chain
-// =====================================================================
-function authorizeRole(...allowedRoles) {
+    req.user = result.payload;
+    console.log(`[AUTH] Access GRANTED - User: ${result.payload.name} (${result.payload.role}) | ${req.method} ${req.path}`);
+    next();
+};
+
+// MIDDLEWARE: Role-Based Authorization
+const authorizeRole = (requiredPermission) => {
     return (req, res, next) => {
-        if (!allowedRoles.includes(req.user.role)) {
-            console.log(`[AUTHZ] FORBIDDEN - User: ${req.user.name} (${req.user.role}) tried to access ${req.path} | Required: ${allowedRoles.join(', ')}`);
+        // PHASE 4: Check role-based authorization
+        if (!checkAuthorization(req.user.role, requiredPermission)) {
             return res.status(403).json({
                 success: false,
-                error: `Access Denied: Requires ${allowedRoles.join(' or ')} role. Your role: ${req.user.role}`,
+                error: `Access Denied: ${req.user.role} does not have ${requiredPermission} permission`,
                 code: 'INSUFFICIENT_ROLE'
             });
         }
         next();
     };
-}
+};
 
-// ======================== Auth Routes ========================
+// Token blacklist (for logout)
+const tokenBlacklist = new Set();
 
-// =====================================================================
-// 5. USER AUTHENTICATION (Login Route)
-//    - Receives username and password from client
-//    - Looks up user in the database (users array)
-//    - If credentials invalid → 401 Unauthorized
-//    - If valid → proceeds to JWT Token Generation (below)
-// =====================================================================
+// ======================== In-Memory Data Store ========================
+
+let exams = [
+    {
+        id: 1,
+        title: 'Cryptography Mid-Term',
+        createdBy: 'faculty1',
+        facultyName: 'Dr. Ananya Verma',
+        questions: [
+            { id: 1, question: 'What does AES stand for?', options: ['Advanced Encryption Standard', 'Advanced Electronic System', 'Automated Encryption Service', 'Applied Encryption Suite'], correct: 0 },
+            { id: 2, question: 'Which key length does AES-256 use?', options: ['128 bits', '192 bits', '256 bits', '512 bits'], correct: 2 },
+            { id: 3, question: 'What is the purpose of HMAC?', options: ['Encryption', 'Message Integrity', 'Key Exchange', 'Compression'], correct: 1 }
+        ],
+        createdAt: new Date().toISOString()
+    }
+];
+
+let submissions = [];
+
+// ======================== API Routes ========================
+
+// POST /api/login — PHASE 1: Authenticate user and generate JWT
 app.post('/api/login', (req, res) => {
     const { username, password } = req.body;
 
@@ -162,91 +282,67 @@ app.post('/api/login', (req, res) => {
         });
     }
 
-    // 5. USER AUTHENTICATION - Verify credentials against the user database
-    const user = users.find(u => u.username === username && u.password === password);
+    // PHASE 1: Authenticate user against database
+    const authResult = authenticateUser(username, password);
 
-    if (!user) {
-        console.log(`[LOGIN] FAILED - Invalid credentials for username: ${username}`);
+    if (!authResult.success) {
+        console.log(`[LOGIN] FAILED - Invalid credentials for: ${username}`);
         return res.status(401).json({
             success: false,
-            error: 'Invalid username or password'
+            error: authResult.message
         });
     }
 
-    // =====================================================================
-    // 1. JWT TOKEN GENERATION (with Role embedded in payload)
-    //    - Payload contains: user id, username, name, role, issued-at time
-    //    - The 'role' field is critical for RBAC (step 4)
-    // =====================================================================
-    const payload = {
-        id: user.id,
-        username: user.username,
-        name: user.name,
-        role: user.role,           // <-- Role embedded in JWT for RBAC
-        iat: Math.floor(Date.now() / 1000)
-    };
+    console.log(`[LOGIN] SUCCESS - User: ${authResult.name} | Role: ${authResult.role}`);
 
-    // =====================================================================
-    // 2. HMAC-SHA256 SIGNATURE GENERATION
-    //    - jwt.sign() creates the token: Header.Payload.Signature
-    //    - Header:    {"alg": "HS256", "typ": "JWT"} → Base64 encoded
-    //    - Payload:   {id, username, name, role, iat, exp} → Base64 encoded
-    //    - Signature: HMAC-SHA256(base64(header) + "." + base64(payload), JWT_SECRET)
-    //    - The secret key (JWT_SECRET) is a 256-bit random key
-    //    - expiresIn adds 'exp' claim to payload (1 hour from now)
-    // =====================================================================
-    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: TOKEN_EXPIRY });
+    // PHASE 2: Generate JWT token with role
+    const token = generateJWT(username, authResult.role, authResult.name);
 
-    // Decode to show token details
-    const decoded = jwt.decode(token);
-
-    console.log(`[LOGIN] SUCCESS - User: ${user.name} | Role: ${user.role} | Token issued`);
+    // Decode token to show details in response
+    const decoded = verifyToken(token);
 
     res.json({
         success: true,
-        message: `Welcome, ${user.name}! Login successful.`,
+        message: `Welcome, ${authResult.name}! ${authResult.message}`,
         token: token,
         user: {
-            id: user.id,
-            name: user.name,
-            role: user.role
+            username: username,
+            name: authResult.name,
+            role: authResult.role
         },
         tokenInfo: {
-            issuedAt: new Date(decoded.iat * 1000).toISOString(),
-            expiresAt: new Date(decoded.exp * 1000).toISOString(),
-            algorithm: 'HS256'
+            issuedAt: new Date(decoded.payload.iat).toISOString(),
+            expiresAt: new Date(decoded.payload.exp).toISOString(),
+            algorithm: 'HS256 (HMAC-SHA256)'
         }
     });
 });
 
-// POST /api/logout - Invalidate token
-app.post('/api/logout', authenticateToken, (req, res) => {
+// POST /api/logout — Invalidate token
+app.post('/api/logout', authenticateTokenMiddleware, (req, res) => {
     const token = req.headers['authorization'].split(' ')[1];
     tokenBlacklist.add(token);
     console.log(`[LOGOUT] User: ${req.user.name} | Token blacklisted`);
     res.json({ success: true, message: 'Logged out successfully. Token invalidated.' });
 });
 
-// GET /api/profile - View own profile (any authenticated user)
-app.get('/api/profile', authenticateToken, (req, res) => {
+// GET /api/profile — View profile (any authenticated user)
+app.get('/api/profile', authenticateTokenMiddleware, (req, res) => {
     res.json({
         success: true,
         user: {
-            id: req.user.id,
+            username: req.user.sub,
             name: req.user.name,
-            username: req.user.username,
             role: req.user.role
         }
     });
 });
 
 // ======================== Student Routes ========================
-// These routes use BOTH middlewares in chain:
-//   authenticateToken → (3. Token Verification)
-//   authorizeRole('student') → (4. RBAC - only students allowed)
+// Middleware chain: authenticateTokenMiddleware (step 3) → authorizeRole (step 4)
 
-// GET /api/student/exams - View available exams (STUDENT ONLY)
-app.get('/api/student/exams', authenticateToken, authorizeRole('student'), (req, res) => {
+// GET /api/student/exams — View available exams (STUDENT — VIEW_QUESTIONS)
+app.get('/api/student/exams', authenticateTokenMiddleware, authorizeRole('VIEW_QUESTIONS'), (req, res) => {
     const examList = exams.map(e => ({
         id: e.id,
         title: e.title,
@@ -262,15 +358,15 @@ app.get('/api/student/exams', authenticateToken, authorizeRole('student'), (req,
     });
 });
 
-// GET /api/student/exams/:id - View exam questions (STUDENT ONLY)
-app.get('/api/student/exams/:id', authenticateToken, authorizeRole('student'), (req, res) => {
+// GET /api/student/exams/:id — View exam questions (STUDENT — VIEW_QUESTIONS)
+app.get('/api/student/exams/:id', authenticateTokenMiddleware, authorizeRole('VIEW_QUESTIONS'), (req, res) => {
     const exam = exams.find(e => e.id === parseInt(req.params.id));
 
     if (!exam) {
         return res.status(404).json({ success: false, error: 'Exam not found' });
     }
 
-    // Send questions without correct answers
+    // Send questions WITHOUT correct answers (security)
     const questions = exam.questions.map(q => ({
         id: q.id,
         question: q.question,
@@ -288,8 +384,8 @@ app.get('/api/student/exams/:id', authenticateToken, authorizeRole('student'), (
     });
 });
 
-// POST /api/student/submit - Submit exam answers (STUDENT ONLY)
-app.post('/api/student/submit', authenticateToken, authorizeRole('student'), (req, res) => {
+// POST /api/student/submit — Submit exam answers (STUDENT — SUBMIT_ANSWER)
+app.post('/api/student/submit', authenticateTokenMiddleware, authorizeRole('SUBMIT_ANSWER'), (req, res) => {
     const { examId, answers } = req.body;
 
     if (!examId || !answers) {
@@ -302,7 +398,7 @@ app.post('/api/student/submit', authenticateToken, authorizeRole('student'), (re
     }
 
     // Check if already submitted
-    const existing = submissions.find(s => s.studentId === req.user.id && s.examId === examId);
+    const existing = submissions.find(s => s.studentUsername === req.user.sub && s.examId === examId);
     if (existing) {
         return res.status(409).json({ success: false, error: 'You have already submitted answers for this exam' });
     }
@@ -316,7 +412,7 @@ app.post('/api/student/submit', authenticateToken, authorizeRole('student'), (re
 
     const submission = {
         id: submissions.length + 1,
-        studentId: req.user.id,
+        studentUsername: req.user.sub,
         studentName: req.user.name,
         examId: examId,
         examTitle: exam.title,
@@ -344,12 +440,10 @@ app.post('/api/student/submit', authenticateToken, authorizeRole('student'), (re
 });
 
 // ======================== Faculty Routes ========================
-// These routes use BOTH middlewares in chain:
-//   authenticateToken → (3. Token Verification)
-//   authorizeRole('faculty') → (4. RBAC - only faculty allowed)
+// Middleware chain: authenticateTokenMiddleware (step 3) → authorizeRole (step 4)
 
-// POST /api/faculty/exams - Create a new exam (FACULTY ONLY)
-app.post('/api/faculty/exams', authenticateToken, authorizeRole('faculty'), (req, res) => {
+// POST /api/faculty/exams — Create a new exam (FACULTY — CREATE_EXAM)
+app.post('/api/faculty/exams', authenticateTokenMiddleware, authorizeRole('CREATE_EXAM'), (req, res) => {
     const { title, questions } = req.body;
 
     if (!title || !questions || !Array.isArray(questions) || questions.length === 0) {
@@ -362,7 +456,7 @@ app.post('/api/faculty/exams', authenticateToken, authorizeRole('faculty'), (req
     const exam = {
         id: exams.length + 1,
         title: title,
-        createdBy: req.user.id,
+        createdBy: req.user.sub,
         facultyName: req.user.name,
         questions: questions.map((q, i) => ({
             id: i + 1,
@@ -388,8 +482,8 @@ app.post('/api/faculty/exams', authenticateToken, authorizeRole('faculty'), (req
     });
 });
 
-// GET /api/faculty/submissions - View all submissions (FACULTY ONLY)
-app.get('/api/faculty/submissions', authenticateToken, authorizeRole('faculty'), (req, res) => {
+// GET /api/faculty/submissions — View all submissions (FACULTY — VIEW_SUBMISSIONS)
+app.get('/api/faculty/submissions', authenticateTokenMiddleware, authorizeRole('VIEW_SUBMISSIONS'), (req, res) => {
     res.json({
         success: true,
         message: `Total ${submissions.length} submission(s)`,
@@ -404,8 +498,8 @@ app.get('/api/faculty/submissions', authenticateToken, authorizeRole('faculty'),
     });
 });
 
-// GET /api/faculty/results - View results summary (FACULTY ONLY)
-app.get('/api/faculty/results', authenticateToken, authorizeRole('faculty'), (req, res) => {
+// GET /api/faculty/results — View results summary (FACULTY — MANAGE_RESULTS)
+app.get('/api/faculty/results', authenticateTokenMiddleware, authorizeRole('MANAGE_RESULTS'), (req, res) => {
     const results = {};
 
     submissions.forEach(s => {
@@ -431,7 +525,6 @@ app.get('/api/faculty/results', authenticateToken, authorizeRole('faculty'), (re
         });
     });
 
-    // Calculate averages
     Object.values(results).forEach(r => {
         r.averageScore = (r.averageScore / r.totalSubmissions).toFixed(1) + '%';
         r.highestScore = r.highestScore.toFixed(1) + '%';
@@ -444,8 +537,8 @@ app.get('/api/faculty/results', authenticateToken, authorizeRole('faculty'), (re
     });
 });
 
-// GET /api/faculty/exams - View all exams (FACULTY ONLY)
-app.get('/api/faculty/exams', authenticateToken, authorizeRole('faculty'), (req, res) => {
+// GET /api/faculty/exams — View all exams (FACULTY — VIEW_EXAMS)
+app.get('/api/faculty/exams', authenticateTokenMiddleware, authorizeRole('VIEW_EXAMS'), (req, res) => {
     res.json({
         success: true,
         exams: exams.map(e => ({
@@ -458,36 +551,29 @@ app.get('/api/faculty/exams', authenticateToken, authorizeRole('faculty'), (req,
     });
 });
 
-// ======================== Demo: Access Denied Routes ========================
+// ======================== Demo: Access Denied Route ========================
 
-// Route to test unauthorized access
-app.get('/api/test/no-token', authenticateToken, (req, res) => {
+app.get('/api/test/no-token', authenticateTokenMiddleware, (req, res) => {
     res.json({ message: 'You should not see this without a token' });
 });
 
 // ======================== Server Start ========================
 
 app.listen(PORT, () => {
-    console.log('='.repeat(55));
+    console.log('='.repeat(60));
     console.log('   VITONLINE Secure Examination System');
-    console.log('   JWT Authentication with Role-Based Access Control');
-    console.log('='.repeat(55));
+    console.log('   Manual JWT (HMAC-SHA256) + Role-Based Access Control');
+    console.log('='.repeat(60));
     console.log(`\n[SERVER] Running on http://localhost:${PORT}`);
-    console.log(`[SERVER] JWT Secret: ${JWT_SECRET.substring(0, 16)}... (${JWT_SECRET.length * 4} bits)`);
-    console.log(`[SERVER] Token Expiry: ${TOKEN_EXPIRY}`);
+    console.log(`[SERVER] Secret Key: ${SECRET_KEY}`);
+    console.log(`[SERVER] Token Expiry: 1 hour`);
     console.log('\n[SERVER] Registered Users:');
-    users.forEach(u => {
-        console.log(`  - ${u.username} / ${u.password}  (${u.role}) — ${u.name}`);
+    Object.entries(users).forEach(([username, u]) => {
+        console.log(`  - ${username} / ${u.password}  (${u.role}) — ${u.name}`);
     });
-    console.log('\n[SERVER] API Endpoints:');
-    console.log('  POST /api/login              — Authenticate & get JWT');
-    console.log('  POST /api/logout             — Invalidate token');
-    console.log('  GET  /api/profile            — View profile (any role)');
-    console.log('  GET  /api/student/exams      — View exams (student)');
-    console.log('  GET  /api/student/exams/:id  — View questions (student)');
-    console.log('  POST /api/student/submit     — Submit answers (student)');
-    console.log('  POST /api/faculty/exams      — Create exam (faculty)');
-    console.log('  GET  /api/faculty/submissions— View submissions (faculty)');
-    console.log('  GET  /api/faculty/results    — View results (faculty)');
+    console.log('\n[SERVER] Role Permissions:');
+    Object.entries(rolePermissions).forEach(([role, perms]) => {
+        console.log(`  ${role}: ${perms.join(', ')}`);
+    });
     console.log('\n[SERVER] Waiting for requests...\n');
 });

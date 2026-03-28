@@ -120,7 +120,7 @@
             <div class="credentials-hint">
                 <strong>Test Credentials:</strong><br>
                 Faculty: <code>faculty1 / faculty123</code><br>
-                Student: <code>student1 / student123</code>
+                Student: <code>student1 / pass123</code>
             </div>
         </div>
     </div>
@@ -292,16 +292,16 @@ async function login() {
 
         const badge = document.getElementById('userBadge');
         badge.textContent = currentUser.role;
-        badge.className = `badge badge-${currentUser.role}`;
+        badge.className = `badge badge-${currentUser.role.toLowerCase()}`;
 
-        if (currentUser.role === 'student') {
+        if (currentUser.role === 'STUDENT') {
             document.getElementById('studentDashboard').style.display = 'block';
             document.getElementById('studentToken').textContent = authToken;
             document.getElementById('studentPayload').textContent = JSON.stringify(parseJwt(authToken), null, 2);
             addLog('student', `Login successful — Role: ${currentUser.role}`, 'success');
             addLog('student', `JWT Token issued — Expires: ${data.tokenInfo.expiresAt}`, 'info');
             loadExams();
-        } else {
+        } else if (currentUser.role === 'FACULTY') {
             document.getElementById('facultyDashboard').style.display = 'block';
             document.getElementById('facultyToken').textContent = authToken;
             document.getElementById('facultyPayload').textContent = JSON.stringify(parseJwt(authToken), null, 2);
@@ -318,7 +318,7 @@ async function login() {
 // ======================== Logout ========================
 async function logout() {
     await api('POST', '/api/logout');
-    const role = currentUser.role;
+    const role = currentUser.role.toLowerCase();
     addLog(role, 'Logged out — Token invalidated', 'warn');
     authToken = null;
     currentUser = null;
@@ -553,8 +553,9 @@ function switchTab(role, tabId) {
 function parseJwt(token) {
     const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
     const payload = JSON.parse(atob(base64));
-    payload.iat_readable = new Date(payload.iat * 1000).toISOString();
-    payload.exp_readable = new Date(payload.exp * 1000).toISOString();
+    // Timestamps are in milliseconds (manual JWT), not seconds
+    payload.iat_readable = new Date(payload.iat).toISOString();
+    payload.exp_readable = new Date(payload.exp).toISOString();
     return payload;
 }
 
