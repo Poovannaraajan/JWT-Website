@@ -11,6 +11,43 @@ Access is denied if the token is invalid, missing, expired, or does not match th
 
 ---
 
+## Setup and Installation
+
+Follow these steps to set up the project on your local machine:
+
+### 1. Prerequisites
+Ensure you have **Node.js** (v14 or higher) and **npm** installed. You can check by running:
+```bash
+node -v
+npm -v
+```
+
+### 2. Installation
+Clone this repository or extract the project files, then navigate to the project directory and install the required dependencies:
+```bash
+npm install
+```
+
+### 3. Running the Application
+Start the server using the following command:
+```bash
+npm start
+```
+The server will start on `http://localhost:3000`.
+
+### 4. Test Credentials
+You can use the following accounts to test the different roles:
+
+| Role | Username | Password |
+|---|---|---|
+| **Faculty** | `faculty1` | `faculty123` |
+| **Faculty** | `faculty2` | `faculty456` |
+| **Student** | `student1` | `pass123` |
+| **Student** | `student2` | `pass456` |
+| **Student** | `student3` | `pass789` |
+
+---
+
 ## Algorithm
 
 ### Flow of Execution
@@ -124,11 +161,11 @@ Signature: HMAC-SHA256(base64(header) + "." + base64(payload), secret_key)
 [SERVER] Token Expiry: 1h
 
 [SERVER] Registered Users:
-  - faculty1 / faculty123  (faculty) — Dr. Ananya Verma
-  - faculty2 / faculty456  (faculty) — Prof. Rajesh Kumar
-  - student1 / student123  (student) — Rahul Sharma
-  - student2 / student456  (student) — Priya Patel
-  - student3 / student789  (student) — Arjun Nair
+  - faculty1 / faculty123  (FACULTY) — Dr. Ananya Verma
+  - faculty2 / faculty456  (FACULTY) — Prof. Rajesh Kumar
+  - student1 / pass123     (STUDENT) — Rahul Sharma
+  - student2 / pass456     (STUDENT) — Priya Patel
+  - student3 / pass789     (STUDENT) — Arjun Nair
 
 [SERVER] Waiting for requests...
 
