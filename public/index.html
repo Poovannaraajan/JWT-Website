@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VITONLINE - Secure Examination System</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+
+        /* Header */
+        .header { background: linear-gradient(135deg, #1e293b, #334155); padding: 16px 32px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #475569; }
+        .header h1 { font-size: 1.4rem; background: linear-gradient(135deg, #38bdf8, #818cf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .header .user-info { display: flex; align-items: center; gap: 12px; }
+        .header .badge { padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
+        .badge-faculty { background: #7c3aed33; color: #a78bfa; border: 1px solid #7c3aed; }
+        .badge-student { background: #0ea5e933; color: #38bdf8; border: 1px solid #0ea5e9; }
+        .btn-logout { background: #ef444433; color: #f87171; border: 1px solid #ef4444; padding: 6px 16px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; transition: all 0.2s; }
+        .btn-logout:hover { background: #ef4444; color: white; }
+
+        /* Login Page */
+        .login-container { display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
+        .login-box { background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 40px; width: 100%; max-width: 420px; box-shadow: 0 25px 50px rgba(0,0,0,0.4); }
+        .login-box h2 { text-align: center; margin-bottom: 8px; font-size: 1.5rem; }
+        .login-box .subtitle { text-align: center; color: #94a3b8; margin-bottom: 28px; font-size: 0.9rem; }
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; margin-bottom: 6px; font-size: 0.85rem; color: #94a3b8; }
+        .form-group input, .form-group select { width: 100%; padding: 10px 14px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; color: #e2e8f0; font-size: 0.95rem; outline: none; transition: border 0.2s; }
+        .form-group input:focus, .form-group select:focus { border-color: #818cf8; }
+        .btn-login { width: 100%; padding: 12px; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; }
+        .btn-login:hover { transform: translateY(-1px); box-shadow: 0 4px 15px rgba(99,102,241,0.4); }
+        .credentials-hint { margin-top: 20px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 14px; font-size: 0.8rem; color: #64748b; }
+        .credentials-hint code { color: #38bdf8; background: #1e293b; padding: 1px 5px; border-radius: 3px; }
+
+        /* Dashboard */
+        .dashboard { display: none; padding: 24px 32px; max-width: 1100px; margin: 0 auto; }
+        .section-title { font-size: 1.2rem; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid #334155; }
+
+        /* Cards */
+        .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px; margin-bottom: 16px; transition: border-color 0.2s; }
+        .card:hover { border-color: #475569; }
+        .card h3 { margin-bottom: 8px; font-size: 1rem; }
+        .card p { color: #94a3b8; font-size: 0.9rem; }
+
+        /* Exam Questions */
+        .question-card { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 18px; margin-bottom: 12px; }
+        .question-card h4 { margin-bottom: 10px; color: #e2e8f0; }
+        .option { display: block; padding: 8px 14px; margin: 4px 0; background: #0f172a; border: 1px solid #334155; border-radius: 6px; cursor: pointer; transition: all 0.2s; font-size: 0.9rem; }
+        .option:hover { border-color: #818cf8; background: #1e1b4b; }
+        .option.selected { border-color: #6366f1; background: #312e81; color: #c7d2fe; }
+        .option input { display: none; }
+
+        /* Buttons */
+        .btn { padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-size: 0.9rem; font-weight: 600; transition: all 0.2s; }
+        .btn-primary { background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; }
+        .btn-primary:hover { box-shadow: 0 4px 15px rgba(99,102,241,0.4); }
+        .btn-success { background: linear-gradient(135deg, #059669, #10b981); color: white; }
+        .btn-success:hover { box-shadow: 0 4px 15px rgba(16,185,129,0.4); }
+
+        /* Table */
+        table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+        th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid #334155; font-size: 0.9rem; }
+        th { color: #94a3b8; font-weight: 600; background: #0f172a; }
+        td { color: #e2e8f0; }
+
+        /* Log Panel */
+        .log-panel { margin-top: 24px; }
+        .log-panel h3 { margin-bottom: 8px; color: #94a3b8; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; }
+        .log-box { background: #020617; border: 1px solid #1e293b; border-radius: 8px; padding: 14px; max-height: 300px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 0.8rem; }
+        .log-entry { padding: 3px 0; border-bottom: 1px solid #0f172a; }
+        .log-entry.success { color: #4ade80; }
+        .log-entry.error { color: #f87171; }
+        .log-entry.info { color: #38bdf8; }
+        .log-entry.warn { color: #fbbf24; }
+
+        /* Token Display */
+        .token-display { background: #020617; border: 1px solid #1e293b; border-radius: 8px; padding: 14px; margin: 12px 0; word-break: break-all; font-family: 'Courier New', monospace; font-size: 0.75rem; color: #fbbf24; max-height: 100px; overflow-y: auto; }
+
+        /* Create Exam Form */
+        .create-exam-form { display: none; }
+        .create-exam-form .form-group input { margin-bottom: 4px; }
+        .question-builder { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 14px; margin-bottom: 10px; }
+        .question-builder input { width: 100%; padding: 8px; background: #1e293b; border: 1px solid #334155; border-radius: 6px; color: #e2e8f0; margin-bottom: 6px; font-size: 0.85rem; outline: none; }
+        .question-builder input:focus { border-color: #818cf8; }
+        .question-builder label { font-size: 0.8rem; color: #94a3b8; }
+
+        /* Alert */
+        .alert { padding: 12px 16px; border-radius: 8px; margin-bottom: 12px; font-size: 0.9rem; display: none; }
+        .alert-success { background: #05966933; border: 1px solid #059669; color: #4ade80; }
+        .alert-error { background: #ef444433; border: 1px solid #ef4444; color: #f87171; }
+
+        /* Tabs */
+        .tabs { display: flex; gap: 4px; margin-bottom: 20px; flex-wrap: wrap; }
+        .tab { padding: 8px 18px; background: #1e293b; border: 1px solid #334155; border-radius: 8px; cursor: pointer; font-size: 0.85rem; transition: all 0.2s; }
+        .tab:hover { border-color: #818cf8; }
+        .tab.active { background: #312e81; border-color: #6366f1; color: #c7d2fe; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+    <!-- Login Page -->
+    <div id="loginPage" class="login-container">
+        <div class="login-box">
+            <h2>🔐 VITONLINE</h2>
+            <p class="subtitle">Secure Examination System · JWT Authentication</p>
+            <div id="loginAlert" class="alert"></div>
+            <div class="form-group">
+                <label>Username</label>
+                <input type="text" id="username" placeholder="Enter username" autocomplete="off">
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" id="password" placeholder="Enter password">
+            </div>
+            <button class="btn-login" onclick="login()">Sign In</button>
+            <div class="credentials-hint">
+                <strong>Test Credentials:</strong><br>
+                Faculty: <code>faculty1 / faculty123</code><br>
+                Student: <code>student1 / student123</code>
+            </div>
+        </div>
+    </div>
+
+    <!-- Header (shown after login) -->
+    <div id="appHeader" class="header hidden">
+        <h1>🎓 VITONLINE Examination System</h1>
+        <div class="user-info">
+            <span id="userName"></span>
+            <span id="userBadge" class="badge"></span>
+            <button class="btn-logout" onclick="logout()">Logout</button>
+        </div>
+    </div>
+
+    <!-- Student Dashboard -->
+    <div id="studentDashboard" class="dashboard">
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('student', 'viewExams')">📝 View Exams</div>
+            <div class="tab" onclick="switchTab('student', 'takeExam')">✍️ Take Exam</div>
+            <div class="tab" onclick="switchTab('student', 'tokenInfo')">🔑 JWT Token Info</div>
+        </div>
+
+        <div id="alert-student" class="alert"></div>
+
+        <!-- View Exams Tab -->
+        <div id="student-viewExams" class="tab-content active">
+            <h2 class="section-title">Available Exams</h2>
+            <div id="examList"></div>
+        </div>
+
+        <!-- Take Exam Tab -->
+        <div id="student-takeExam" class="tab-content">
+            <h2 class="section-title">Exam Questions</h2>
+            <div id="examQuestions"><p style="color:#64748b;">Select an exam from the "View Exams" tab first.</p></div>
+        </div>
+
+        <!-- Token Info Tab -->
+        <div id="student-tokenInfo" class="tab-content">
+            <h2 class="section-title">JWT Token Details</h2>
+            <div class="card">
+                <h3>Your JWT Token</h3>
+                <div id="studentToken" class="token-display"></div>
+                <h3 style="margin-top:14px;">Decoded Payload</h3>
+                <pre id="studentPayload" style="background:#020617;padding:14px;border-radius:8px;color:#38bdf8;font-size:0.8rem;overflow-x:auto;margin-top:8px;"></pre>
+            </div>
+        </div>
+
+        <div class="log-panel">
+            <h3>📋 Activity Log</h3>
+            <div id="studentLog" class="log-box"></div>
+        </div>
+    </div>
+
+    <!-- Faculty Dashboard -->
+    <div id="facultyDashboard" class="dashboard">
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('faculty', 'manageExams')">📋 Manage Exams</div>
+            <div class="tab" onclick="switchTab('faculty', 'createExam')">➕ Create Exam</div>
+            <div class="tab" onclick="switchTab('faculty', 'viewSubs')">📊 Submissions</div>
+            <div class="tab" onclick="switchTab('faculty', 'results')">🏆 Results</div>
+            <div class="tab" onclick="switchTab('faculty', 'tokenInfo')">🔑 JWT Token Info</div>
+            <div class="tab" onclick="switchTab('faculty', 'testAccess')">⚠️ Test Access Control</div>
+        </div>
+
+        <div id="alert-faculty" class="alert"></div>
+
+        <!-- Manage Exams Tab -->
+        <div id="faculty-manageExams" class="tab-content active">
+            <h2 class="section-title">All Exams</h2>
+            <div id="facultyExamList"></div>
+        </div>
+
+        <!-- Create Exam Tab -->
+        <div id="faculty-createExam" class="tab-content">
+            <h2 class="section-title">Create New Exam</h2>
+            <div class="card">
+                <div class="form-group">
+                    <label>Exam Title</label>
+                    <input type="text" id="newExamTitle" placeholder="e.g. Network Security Quiz">
+                </div>
+                <div id="questionsList">
+                    <!-- Question builders inserted here -->
+                </div>
+                <button class="btn btn-primary" onclick="addQuestionBuilder()" style="margin-right:8px;">+ Add Question</button>
+                <button class="btn btn-success" onclick="createExam()">Create Exam</button>
+            </div>
+        </div>
+
+        <!-- View Submissions Tab -->
+        <div id="faculty-viewSubs" class="tab-content">
+            <h2 class="section-title">Student Submissions</h2>
+            <div id="submissionsTable"></div>
+        </div>
+
+        <!-- Results Tab -->
+        <div id="faculty-results" class="tab-content">
+            <h2 class="section-title">Results Summary</h2>
+            <div id="resultsView"></div>
+        </div>
+
+        <!-- Token Info Tab -->
+        <div id="faculty-tokenInfo" class="tab-content">
+            <h2 class="section-title">JWT Token Details</h2>
+            <div class="card">
+                <h3>Your JWT Token</h3>
+                <div id="facultyToken" class="token-display"></div>
+                <h3 style="margin-top:14px;">Decoded Payload</h3>
+                <pre id="facultyPayload" style="background:#020617;padding:14px;border-radius:8px;color:#38bdf8;font-size:0.8rem;overflow-x:auto;margin-top:8px;"></pre>
+            </div>
+        </div>
+
+        <!-- Test Access Control Tab -->
+        <div id="faculty-testAccess" class="tab-content">
+            <h2 class="section-title">Test Role-Based Access Control</h2>
+            <div class="card">
+                <p style="margin-bottom:14px;">Try accessing student-only endpoints with your faculty token to see access denial:</p>
+                <button class="btn btn-primary" onclick="testAccessControl('/api/student/exams', 'GET')" style="margin:4px;">GET /api/student/exams</button>
+                <button class="btn btn-primary" onclick="testAccessControl('/api/student/submit', 'POST')" style="margin:4px;">POST /api/student/submit</button>
+                <button class="btn btn-primary" onclick="testAccessControl('/api/test/no-token', 'GET', true)" style="margin:4px;">GET without Token</button>
+                <div id="accessTestResult" style="margin-top:14px;"></div>
+            </div>
+        </div>
+
+        <div class="log-panel">
+            <h3>📋 Activity Log</h3>
+            <div id="facultyLog" class="log-box"></div>
+        </div>
+    </div>
+
+<script>
+// ======================== State ========================
+let authToken = null;
+let currentUser = null;
+let selectedExamId = null;
+let questionCount = 0;
+
+// ======================== API Helper ========================
+async function api(method, url, body = null, useToken = true) {
+    const headers = { 'Content-Type': 'application/json' };
+    if (useToken && authToken) headers['Authorization'] = `Bearer ${authToken}`;
+
+    const opts = { method, headers };
+    if (body) opts.body = JSON.stringify(body);
+
+    const res = await fetch(url, opts);
+    const data = await res.json();
+    return { status: res.status, data };
+}
+
+// ======================== Login ========================
+async function login() {
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value.trim();
+
+    if (!username || !password) {
+        showAlert('loginAlert', 'Please enter both username and password.', 'error');
+        return;
+    }
+
+    const { status, data } = await api('POST', '/api/login', { username, password }, false);
+
+    if (data.success) {
+        authToken = data.token;
+        currentUser = data.user;
+
+        document.getElementById('loginPage').style.display = 'none';
+        document.getElementById('appHeader').classList.remove('hidden');
+        document.getElementById('userName').textContent = currentUser.name;
+
+        const badge = document.getElementById('userBadge');
+        badge.textContent = currentUser.role;
+        badge.className = `badge badge-${currentUser.role}`;
+
+        if (currentUser.role === 'student') {
+            document.getElementById('studentDashboard').style.display = 'block';
+            document.getElementById('studentToken').textContent = authToken;
+            document.getElementById('studentPayload').textContent = JSON.stringify(parseJwt(authToken), null, 2);
+            addLog('student', `Login successful — Role: ${currentUser.role}`, 'success');
+            addLog('student', `JWT Token issued — Expires: ${data.tokenInfo.expiresAt}`, 'info');
+            loadExams();
+        } else {
+            document.getElementById('facultyDashboard').style.display = 'block';
+            document.getElementById('facultyToken').textContent = authToken;
+            document.getElementById('facultyPayload').textContent = JSON.stringify(parseJwt(authToken), null, 2);
+            addLog('faculty', `Login successful — Role: ${currentUser.role}`, 'success');
+            addLog('faculty', `JWT Token issued — Expires: ${data.tokenInfo.expiresAt}`, 'info');
+            loadFacultyExams();
+            addQuestionBuilder();
+        }
+    } else {
+        showAlert('loginAlert', data.error, 'error');
+    }
+}
+
+// ======================== Logout ========================
+async function logout() {
+    await api('POST', '/api/logout');
+    const role = currentUser.role;
+    addLog(role, 'Logged out — Token invalidated', 'warn');
+    authToken = null;
+    currentUser = null;
+    selectedExamId = null;
+    questionCount = 0;
+
+    document.getElementById('appHeader').classList.add('hidden');
+    document.getElementById('studentDashboard').style.display = 'none';
+    document.getElementById('facultyDashboard').style.display = 'none';
+    document.getElementById('loginPage').style.display = 'flex';
+    document.getElementById('username').value = '';
+    document.getElementById('password').value = '';
+}
+
+// ======================== Student Functions ========================
+async function loadExams() {
+    const { status, data } = await api('GET', '/api/student/exams');
+    if (data.success) {
+        const container = document.getElementById('examList');
+        if (data.exams.length === 0) {
+            container.innerHTML = '<p style="color:#64748b;">No exams available yet.</p>';
+            return;
+        }
+        container.innerHTML = data.exams.map(e => `
+            <div class="card" style="cursor:pointer;" onclick="loadExamQuestions(${e.id})">
+                <h3>📝 ${e.title}</h3>
+                <p>Faculty: ${e.facultyName} · Questions: ${e.questionCount} · Created: ${new Date(e.createdAt).toLocaleDateString()}</p>
+            </div>
+        `).join('');
+        addLog('student', `Loaded ${data.exams.length} exam(s)`, 'info');
+    }
+}
+
+async function loadExamQuestions(examId) {
+    selectedExamId = examId;
+    const { status, data } = await api('GET', `/api/student/exams/${examId}`);
+    if (data.success) {
+        const container = document.getElementById('examQuestions');
+        container.innerHTML = `<h3 style="margin-bottom:14px;">${data.exam.title}</h3>` +
+            data.exam.questions.map(q => `
+                <div class="question-card">
+                    <h4>Q${q.id}. ${q.question}</h4>
+                    ${q.options.map((opt, i) => `
+                        <label class="option" onclick="selectOption(this, ${q.id}, ${i})">
+                            <input type="radio" name="q${q.id}" value="${i}">
+                            ${String.fromCharCode(65 + i)}. ${opt}
+                        </label>
+                    `).join('')}
+                </div>
+            `).join('') +
+            `<button class="btn btn-success" onclick="submitExam()" style="margin-top:12px;">Submit Answers</button>`;
+        switchTab('student', 'takeExam');
+        addLog('student', `Loaded questions for exam #${examId}: "${data.exam.title}"`, 'info');
+    }
+}
+
+function selectOption(el, qId, optIdx) {
+    const parent = el.closest('.question-card');
+    parent.querySelectorAll('.option').forEach(o => o.classList.remove('selected'));
+    el.classList.add('selected');
+    el.querySelector('input').checked = true;
+}
+
+async function submitExam() {
+    if (!selectedExamId) return;
+    const answers = {};
+    document.querySelectorAll('#examQuestions .question-card').forEach(card => {
+        const radio = card.querySelector('input[type="radio"]:checked');
+        if (radio) {
+            const qId = parseInt(radio.name.replace('q', ''));
+            answers[qId] = parseInt(radio.value);
+        }
+    });
+
+    const { status, data } = await api('POST', '/api/student/submit', { examId: selectedExamId, answers });
+    if (data.success) {
+        showDashboardAlert('student', `Submitted! Score: ${data.result.score}/${data.result.total} (${data.result.percentage})`, 'success');
+        addLog('student', `Exam submitted — Score: ${data.result.score}/${data.result.total} (${data.result.percentage})`, 'success');
+    } else {
+        showDashboardAlert('student', data.error, 'error');
+        addLog('student', `Submission failed: ${data.error}`, 'error');
+    }
+}
+
+// ======================== Faculty Functions ========================
+async function loadFacultyExams() {
+    const { status, data } = await api('GET', '/api/faculty/exams');
+    if (data.success) {
+        const container = document.getElementById('facultyExamList');
+        if (data.exams.length === 0) {
+            container.innerHTML = '<p style="color:#64748b;">No exams created yet.</p>';
+            return;
+        }
+        container.innerHTML = data.exams.map(e => `
+            <div class="card">
+                <h3>📋 ${e.title}</h3>
+                <p>Created by: ${e.facultyName} · Questions: ${e.questionCount} · ${new Date(e.createdAt).toLocaleDateString()}</p>
+            </div>
+        `).join('');
+        addLog('faculty', `Loaded ${data.exams.length} exam(s)`, 'info');
+    }
+}
+
+function addQuestionBuilder() {
+    questionCount++;
+    const div = document.createElement('div');
+    div.className = 'question-builder';
+    div.innerHTML = `
+        <label>Question ${questionCount}</label>
+        <input type="text" placeholder="Enter question" class="q-text">
+        <input type="text" placeholder="Option A" class="q-opt-a">
+        <input type="text" placeholder="Option B" class="q-opt-b">
+        <input type="text" placeholder="Option C" class="q-opt-c">
+        <input type="text" placeholder="Option D" class="q-opt-d">
+        <label>Correct Answer (0=A, 1=B, 2=C, 3=D)</label>
+        <input type="number" min="0" max="3" value="0" class="q-correct">
+    `;
+    document.getElementById('questionsList').appendChild(div);
+}
+
+async function createExam() {
+    const title = document.getElementById('newExamTitle').value.trim();
+    if (!title) { showDashboardAlert('faculty', 'Enter an exam title.', 'error'); return; }
+
+    const builders = document.querySelectorAll('.question-builder');
+    const questions = [];
+    builders.forEach(b => {
+        const q = b.querySelector('.q-text').value.trim();
+        if (!q) return;
+        questions.push({
+            question: q,
+            options: [
+                b.querySelector('.q-opt-a').value.trim() || 'Option A',
+                b.querySelector('.q-opt-b').value.trim() || 'Option B',
+                b.querySelector('.q-opt-c').value.trim() || 'Option C',
+                b.querySelector('.q-opt-d').value.trim() || 'Option D'
+            ],
+            correct: parseInt(b.querySelector('.q-correct').value) || 0
+        });
+    });
+
+    if (questions.length === 0) { showDashboardAlert('faculty', 'Add at least one question.', 'error'); return; }
+
+    const { status, data } = await api('POST', '/api/faculty/exams', { title, questions });
+    if (data.success) {
+        showDashboardAlert('faculty', `Exam "${title}" created with ${questions.length} question(s)!`, 'success');
+        addLog('faculty', `Exam created: "${title}" — ${questions.length} questions`, 'success');
+        document.getElementById('newExamTitle').value = '';
+        document.getElementById('questionsList').innerHTML = '';
+        questionCount = 0;
+        addQuestionBuilder();
+        loadFacultyExams();
+    } else {
+        showDashboardAlert('faculty', data.error, 'error');
+    }
+}
+
+async function loadSubmissions() {
+    const { status, data } = await api('GET', '/api/faculty/submissions');
+    if (data.success) {
+        const container = document.getElementById('submissionsTable');
+        if (data.submissions.length === 0) {
+            container.innerHTML = '<p style="color:#64748b;">No submissions yet.</p>';
+            return;
+        }
+        container.innerHTML = `<table>
+            <tr><th>Student</th><th>Exam</th><th>Score</th><th>%</th><th>Date</th></tr>
+            ${data.submissions.map(s => `<tr><td>${s.studentName}</td><td>${s.examTitle}</td><td>${s.score}</td><td>${s.percentage}</td><td>${new Date(s.submittedAt).toLocaleString()}</td></tr>`).join('')}
+        </table>`;
+        addLog('faculty', `Loaded ${data.submissions.length} submission(s)`, 'info');
+    }
+}
+
+async function loadResults() {
+    const { status, data } = await api('GET', '/api/faculty/results');
+    if (data.success) {
+        const container = document.getElementById('resultsView');
+        if (data.results.length === 0) {
+            container.innerHTML = '<p style="color:#64748b;">No results available yet.</p>';
+            return;
+        }
+        container.innerHTML = data.results.map(r => `
+            <div class="card">
+                <h3>📊 ${r.examTitle}</h3>
+                <p>Submissions: ${r.totalSubmissions} · Average: ${r.averageScore} · Highest: ${r.highestScore} · Lowest: ${r.lowestScore}</p>
+                <table style="margin-top:8px;">
+                    <tr><th>Student</th><th>Score</th><th>Percentage</th></tr>
+                    ${r.students.map(s => `<tr><td>${s.name}</td><td>${s.score}</td><td>${s.percentage}</td></tr>`).join('')}
+                </table>
+            </div>
+        `).join('');
+        addLog('faculty', 'Loaded results summary', 'info');
+    }
+}
+
+// ======================== Access Control Test ========================
+async function testAccessControl(url, method, noToken = false) {
+    const headers = { 'Content-Type': 'application/json' };
+    if (!noToken && authToken) headers['Authorization'] = `Bearer ${authToken}`;
+
+    const opts = { method, headers };
+    if (method === 'POST') opts.body = JSON.stringify({});
+
+    const res = await fetch(url, opts);
+    const data = await res.json();
+    const container = document.getElementById('accessTestResult');
+
+    const isError = res.status >= 400;
+    container.innerHTML = `
+        <div class="card" style="border-color: ${isError ? '#ef4444' : '#059669'};">
+            <h3 style="color: ${isError ? '#f87171' : '#4ade80'};">${isError ? '🚫 Access DENIED' : '✅ Access GRANTED'} — HTTP ${res.status}</h3>
+            <pre style="background:#020617; padding:10px; border-radius:6px; color:${isError ? '#f87171' : '#4ade80'}; margin-top:8px; font-size:0.8rem; overflow-x:auto;">${JSON.stringify(data, null, 2)}</pre>
+        </div>`;
+
+    addLog('faculty', `${method} ${url} ${noToken ? '(no token)' : ''} → ${res.status} ${isError ? 'DENIED' : 'GRANTED'}: ${data.error || data.code || 'OK'}`, isError ? 'error' : 'success');
+}
+
+// ======================== Tab Switching ========================
+function switchTab(role, tabId) {
+    document.querySelectorAll(`#${role}Dashboard .tab`).forEach(t => t.classList.remove('active'));
+    document.querySelectorAll(`#${role}Dashboard .tab-content`).forEach(c => c.classList.remove('active'));
+
+    event.target.classList.add('active');
+    document.getElementById(`${role}-${tabId}`).classList.add('active');
+
+    // Load data on tab switch
+    if (tabId === 'viewSubs') loadSubmissions();
+    if (tabId === 'results') loadResults();
+}
+
+// ======================== Utilities ========================
+function parseJwt(token) {
+    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const payload = JSON.parse(atob(base64));
+    payload.iat_readable = new Date(payload.iat * 1000).toISOString();
+    payload.exp_readable = new Date(payload.exp * 1000).toISOString();
+    return payload;
+}
+
+function showAlert(id, msg, type) {
+    const el = document.getElementById(id);
+    el.textContent = msg;
+    el.className = `alert alert-${type}`;
+    el.style.display = 'block';
+    setTimeout(() => el.style.display = 'none', 4000);
+}
+
+function showDashboardAlert(role, msg, type) {
+    showAlert(`alert-${role}`, msg, type);
+}
+
+function addLog(role, msg, type = 'info') {
+    const box = document.getElementById(`${role}Log`);
+    const time = new Date().toLocaleTimeString();
+    box.innerHTML = `<div class="log-entry ${type}">[${time}] ${msg}</div>` + box.innerHTML;
+}
+
+// Enter key to login
+document.getElementById('password').addEventListener('keypress', (e) => { if (e.key === 'Enter') login(); });
+document.getElementById('username').addEventListener('keypress', (e) => { if (e.key === 'Enter') login(); });
+</script>
+
+</body>
+</html>
